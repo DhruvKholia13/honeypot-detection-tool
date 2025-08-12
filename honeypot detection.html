@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoneySleuth - Honeypot Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Dark Gray */
+        }
+        .gauge-container {
+            position: relative;
+            width: 250px;
+            height: 125px;
+            overflow: hidden;
+        }
+        .gauge-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: conic-gradient(from -90deg at 50% 100%, #10B981 0%, #F59E0B 50%, #EF4444 100%);
+            border-radius: 250px 250px 0 0;
+        }
+        .gauge-mask {
+            position: absolute;
+            width: 210px;
+            height: 105px;
+            background: #1F2937; /* Gray-800 */
+            border-radius: 210px 210px 0 0;
+            top: 20px;
+            left: 20px;
+            z-index: 1;
+        }
+        .gauge-needle {
+            position: absolute;
+            width: 2px;
+            height: 100px;
+            background: #F9FAFB; /* Gray-50 */
+            bottom: 25px;
+            left: 50%;
+            transform-origin: bottom center;
+            transition: transform 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+            z-index: 2;
+            transform: translateX(-50%) rotate(-90deg); /* Start at 0% */
+        }
+        .gauge-center-dot {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background: #F9FAFB;
+            border-radius: 50%;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3;
+        }
+        .gauge-text {
+            position: absolute;
+            bottom: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2;
+            color: #F9FAFB;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+         .gauge-label {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2;
+            color: #9CA3AF; /* Gray-400 */
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .log-entry {
+            transition: opacity 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-4xl bg-gray-900 rounded-2xl shadow-2xl p-6 md:p-8">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+                <div class="flex items-center">
+                    <svg class="h-10 w-10 text-yellow-400 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 15.75-2.489-2.489m0 0a3.375 3.375 0 1 0-4.773-4.773 3.375 3.375 0 0 0 4.774 4.774ZM21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">HoneySleuth</h1>
+                        <p class="text-sm text-gray-400">Advanced Honeypot Detection Suite</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Section -->
+            <div class="flex flex-col sm:flex-row items-center gap-4 mb-8">
+                <input id="targetIp" type="text" class="w-full flex-grow bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-500 focus:outline-none transition" placeholder="Enter Target IP or Domain (e.g., 192.168.1.108)" value="192.168.1.108">
+                <button id="scanBtn" class="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-3 px-8 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center gap-2">
+                    <svg id="scanIcon" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+                    <svg id="loadingIcon" class="animate-spin h-5 w-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span id="scanBtnText">Scan</span>
+                </button>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
+                <!-- Gauge -->
+                <div class="md:col-span-1 flex flex-col items-center justify-center bg-gray-800 rounded-xl p-6">
+                    <div class="gauge-container">
+                        <div class="gauge-background"></div>
+                        <div class="gauge-mask"></div>
+                        <div id="gaugeNeedle" class="gauge-needle"></div>
+                        <div class="gauge-center-dot"></div>
+                        <div id="gaugeText" class="gauge-text">0%</div>
+                        <div class="gauge-label">Confidence Score</div>
+                    </div>
+                    <div id="verdict" class="text-center mt-4">
+                        <p class="text-lg font-semibold text-gray-400">Analysis Pending...</p>
+                    </div>
+                </div>
+
+                <!-- Scan Log -->
+                <div class="md:col-span-2 bg-gray-800 rounded-xl p-6">
+                    <h3 class="text-lg font-semibold text-white mb-4">Scan Log</h3>
+                    <div id="scanLog" class="space-y-3 h-64 overflow-y-auto pr-2">
+                        <!-- Log entries will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const targetIpEl = document.getElementById('targetIp');
+        const scanBtn = document.getElementById('scanBtn');
+        const scanBtnText = document.getElementById('scanBtnText');
+        const scanIcon = document.getElementById('scanIcon');
+        const loadingIcon = document.getElementById('loadingIcon');
+        const resultsSection = document.getElementById('resultsSection');
+        const gaugeNeedle = document.getElementById('gaugeNeedle');
+        const gaugeText = document.getElementById('gaugeText');
+        const verdict = document.getElementById('verdict');
+        const scanLog = document.getElementById('scanLog');
+
+        // --- Simulation Data ---
+        // This simulates a database of known honeypot characteristics.
+        const MOCK_HONEYPOT_IP = '192.168.1.108';
+        const honeypotData = {
+            openPorts: [21, 22, 23, 25, 80, 110, 135, 139, 443, 445, 1433, 3306, 3389, 5900, 8080],
+            sshBanner: 'SSH-2.0-Kippo-0.5',
+            ftpBanner: '220 ProFTPD 1.3.5 Server (Debian) [::ffff:192.168.1.108]',
+            acceptsAnyAuth: true,
+            isWritable: false,
+        };
+
+        const legitimateServerData = {
+            openPorts: [22, 80, 443],
+            sshBanner: 'SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5',
+            ftpBanner: null,
+            acceptsAnyAuth: false,
+            isWritable: true,
+        };
+
+        // --- Functions ---
+
+        /**
+         * Simulates a delay to mimic real network latency.
+         * @param {number} ms - Milliseconds to wait.
+         * @returns {Promise}
+         */
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Resets the UI to its initial state before a scan.
+         */
+        function resetUI() {
+            resultsSection.classList.add('hidden');
+            scanLog.innerHTML = '';
+            updateGauge(0);
+            verdict.innerHTML = `<p class="text-lg font-semibold text-gray-400">Analysis Pending...</p>`;
+            scanBtn.disabled = false;
+            scanBtnText.textContent = 'Scan';
+            scanIcon.classList.remove('hidden');
+            loadingIcon.classList.add('hidden');
+        }
+
+        /**
+         * Updates the gauge and its text display.
+         * @param {number} score - The confidence score (0-100).
+         */
+        function updateGauge(score) {
+            const rotation = -90 + (score * 1.8); // Map 0-100 to -90deg to +90deg
+            gaugeNeedle.style.transform = `translateX(-50%) rotate(${rotation}deg)`;
+            gaugeText.textContent = `${score}%`;
+        }
+        
+        /**
+         * Adds a new entry to the scan log with a status icon.
+         * @param {string} text - The log message.
+         * @param {string} status - 'info', 'success', 'warning', or 'fail'.
+         */
+        function log(text, status = 'info') {
+            const icons = {
+                info: `<svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+                success: `<svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+                warning: `<svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>`,
+                fail: `<svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>`,
+            };
+            const entry = document.createElement('div');
+            entry.className = 'log-entry flex items-start gap-3 text-sm opacity-0';
+            entry.innerHTML = `
+                <div class="flex-shrink-0">${icons[status]}</div>
+                <p class="text-gray-300">${text}</p>
+            `;
+            scanLog.appendChild(entry);
+            // Trigger fade-in animation
+            setTimeout(() => entry.classList.remove('opacity-0'), 50);
+            scanLog.scrollTop = scanLog.scrollHeight;
+        }
+
+        /**
+         * Sets the final verdict based on the score.
+         * @param {number} score - The final confidence score.
+         */
+        function setVerdict(score) {
+            let message, colorClass;
+            if (score > 70) {
+                message = "High Confidence Honeypot";
+                colorClass = "text-red-400";
+            } else if (score > 20) {
+                message = "Suspicious Behavior Detected";
+                colorClass = "text-yellow-400";
+            } else {
+                message = "Likely a Legitimate Server";
+                colorClass = "text-green-400";
+            }
+            verdict.innerHTML = `<p class="text-lg font-semibold ${colorClass}">${message}</p>`;
+        }
+        
+        /**
+         * Main scan function to orchestrate the detection process.
+         */
+        async function startScan() {
+            const targetIp = targetIpEl.value.trim();
+            if (!targetIp) {
+                alert('Please enter a target IP or domain.');
+                return;
+            }
+
+            // --- 1. Initialize UI for scanning ---
+            resetUI();
+            scanBtn.disabled = true;
+            scanBtnText.textContent = 'Scanning...';
+            scanIcon.classList.add('hidden');
+            loadingIcon.classList.remove('hidden');
+            resultsSection.classList.remove('hidden');
+            
+            let confidenceScore = 0;
+            const targetData = (targetIp === MOCK_HONEYPOT_IP) ? honeypotData : legitimateServerData;
+
+            await sleep(500);
+            log(`Starting scan on <strong>${targetIp}</strong>...`, 'info');
+
+            // --- 2. Port Scanning Analysis ---
+            await sleep(1000);
+            log('Analyzing open ports...', 'info');
+            await sleep(500);
+            if (targetData.openPorts.length > 10) {
+                confidenceScore += 35;
+                log(`<strong>Finding:</strong> Unusually high number of common ports open (${targetData.openPorts.length}). This is a common honeypot trait.`, 'fail');
+            } else {
+                log(`<strong>Finding:</strong> Normal number of open ports detected (${targetData.openPorts.length}).`, 'success');
+            }
+            updateGauge(confidenceScore);
+            
+            // --- 3. Banner Grabbing ---
+            await sleep(1000);
+            log('Checking service banners...', 'info');
+            await sleep(500);
+            if (targetData.sshBanner && targetData.sshBanner.toLowerCase().includes('kippo')) {
+                confidenceScore += 40;
+                log(`<strong>Finding:</strong> SSH banner "<strong>${targetData.sshBanner}</strong>" matches a known honeypot signature.`, 'fail');
+            } else {
+                log(`<strong>Finding:</strong> SSH banner "<strong>${targetData.sshBanner}</strong>" does not match known honeypot signatures.`, 'success');
+            }
+            updateGauge(confidenceScore);
+
+            // --- 4. Behavioral Analysis (Authentication) ---
+            await sleep(1000);
+            log('Testing service authentication behavior...', 'info');
+            await sleep(500);
+            if (targetData.acceptsAnyAuth) {
+                confidenceScore += 25;
+                log('<strong>Finding:</strong> Server accepted a common weak password (e.g., "admin:password"). This is a major red flag.', 'fail');
+            } else {
+                log('<strong>Finding:</strong> Server correctly rejected invalid credentials.', 'success');
+            }
+            // Clamp score to 100
+            if (confidenceScore > 100) confidenceScore = 100;
+            updateGauge(confidenceScore);
+
+            // --- 5. Environment Analysis ---
+             await sleep(1000);
+            log('Probing environment interactivity...', 'info');
+            await sleep(500);
+            if (!targetData.isWritable) {
+                 confidenceScore = Math.min(100, confidenceScore + 15); // Add points but don't exceed 100
+                 log('<strong>Finding:</strong> Filesystem appears to be non-writable or non-persistent. Common in low-interaction honeypots.', 'warning');
+            } else {
+                 log('<strong>Finding:</strong> Environment appears to be interactive and persistent.', 'success');
+            }
+             if (confidenceScore > 100) confidenceScore = 100;
+             updateGauge(confidenceScore);
+
+            // --- 6. Finalize ---
+            await sleep(500);
+            log('Analysis complete.', 'info');
+            setVerdict(confidenceScore);
+            scanBtn.disabled = false;
+            scanBtnText.textContent = 'Scan Again';
+            scanIcon.classList.remove('hidden');
+            loadingIcon.classList.add('hidden');
+        }
+
+        // --- Event Listeners ---
+        scanBtn.addEventListener('click', startScan);
+        targetIpEl.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                startScan();
+            }
+        });
+    </script>
+
+</body>
+</html>
